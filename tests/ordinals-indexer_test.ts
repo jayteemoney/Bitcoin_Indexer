@@ -224,3 +224,136 @@ Clarinet.test({
         const searchStats = block.receipts[0].result.expectOk();
     },
 });
+
+Clarinet.test({
+    name: "Test enhanced storage statistics and validation",
+    async fn(chain: Chain, accounts: Map<string, Account>) {
+        const deployer = accounts.get('deployer')!;
+        const wallet1 = accounts.get('wallet_1')!;
+
+        // Test enhanced storage statistics
+        let block = chain.mineBlock([
+            Tx.contractCall('ordinals-storage', 'get-storage-statistics', [], deployer.address)
+        ]);
+
+        assertEquals(block.receipts.length, 1);
+        const stats = block.receipts[0].result.expectOk();
+
+        // Test content type validation
+        block = chain.mineBlock([
+            Tx.contractCall('ordinals-storage', 'is-valid-content-type', [
+                types.ascii('image/png')
+            ], deployer.address)
+        ]);
+
+        assertEquals(block.receipts.length, 1);
+        assertEquals(block.receipts[0].result, types.bool(true));
+
+        // Test invalid content type
+        block = chain.mineBlock([
+            Tx.contractCall('ordinals-storage', 'is-valid-content-type', [
+                types.ascii('invalid-type')
+            ], deployer.address)
+        ]);
+
+        assertEquals(block.receipts.length, 1);
+        assertEquals(block.receipts[0].result, types.bool(false));
+    },
+});
+
+Clarinet.test({
+    name: "Test batch processing functionality",
+    async fn(chain: Chain, accounts: Map<string, Account>) {
+        const deployer = accounts.get('deployer')!;
+        const wallet1 = accounts.get('wallet_1')!;
+        const wallet2 = accounts.get('wallet_2')!;
+
+        // Create batch of ordinals
+        const batchData = [
+            {
+                'inscription-id': types.buff('0x1111111111111111111111111111111111111111111111111111111111111111'),
+                'content-type': types.ascii('image/png'),
+                'content-size': types.uint(1024),
+                'owner': types.principal(wallet1.address),
+                'bitcoin-tx-hash': types.buff('0x1111222233334444555566667777888899990000'),
+                'bitcoin-block-height': types.uint(800010),
+                'metadata-uri': types.none()
+            },
+            {
+                'inscription-id': types.buff('0x2222222222222222222222222222222222222222222222222222222222222222'),
+                'content-type': types.ascii('text/plain'),
+                'content-size': types.uint(512),
+                'owner': types.principal(wallet2.address),
+                'bitcoin-tx-hash': types.buff('0x2222333344445555666677778888999900001111'),
+                'bitcoin-block-height': types.uint(800011),
+                'metadata-uri': types.none()
+            }
+        ];
+
+        // Test batch indexing
+        let block = chain.mineBlock([
+            Tx.contractCall('ordinals-indexer', 'batch-index-ordinals', [
+                types.list(batchData.map(data => types.tuple(data)))
+            ], deployer.address)
+        ]);
+
+        assertEquals(block.receipts.length, 1);
+        block.receipts[0].result.expectOk();
+
+        // Verify batch statistics
+        block = chain.mineBlock([
+            Tx.contractCall('ordinals-indexer', 'get-indexing-stats', [], deployer.address)
+        ]);
+
+        assertEquals(block.receipts.length, 1);
+        const batchStats = block.receipts[0].result.expectOk();
+
+        // Verify storage statistics updated
+        block = chain.mineBlock([
+            Tx.contractCall('ordinals-storage', 'get-storage-statistics', [], deployer.address)
+        ]);
+
+        assertEquals(block.receipts.length, 1);
+        const storageStats = block.receipts[0].result.expectOk();
+    },
+});
+
+Clarinet.test({
+    name: "Test enhanced validation and error handling",
+    async fn(chain: Chain, accounts: Map<string, Account>) {
+        const deployer = accounts.get('deployer')!;
+        const wallet1 = accounts.get('wallet_1')!;
+
+        // Test invalid content size (too large)
+        let block = chain.mineBlock([
+            Tx.contractCall('ordinals-storage', 'add-ordinal', [
+                types.buff('0x3333333333333333333333333333333333333333333333333333333333333333'),
+                types.ascii('image/png'),
+                types.uint(104857601), // Exceeds MAX_CONTENT_SIZE
+                types.principal(wallet1.address),
+                types.buff('0x3333444455556666777788889999000011112222'),
+                types.uint(800020),
+                types.none()
+            ], deployer.address)
+        ]);
+
+        assertEquals(block.receipts.length, 1);
+        block.receipts[0].result.expectErr(types.uint(106)); // ERR_INVALID_SIZE_RANGE
+
+        // Test invalid content size (too small)
+        block = chain.mineBlock([
+            Tx.contractCall('ordinals-storage', 'add-ordinal', [
+                types.buff('0x4444444444444444444444444444444444444444444444444444444444444444'),
+                types.ascii('image/png'),
+                types.uint(0), // Below MIN_CONTENT_SIZE
+                types.principal(wallet1.address),
+                types.buff('0x4444555566667777888899990000111122223333'),
+                types.uint(800021),
+                types.none()
+            ], deployer.address)
+        ]);
+
+        assertEquals(block.receipts.length, 1);
+        block.receipts[0].result.expectErr(types.uint(106)); // ERR_INVALID_SIZE_RANGE
+    },
+});
