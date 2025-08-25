@@ -52,11 +52,12 @@ A comprehensive Bitcoin Ordinals indexing system built on the Stacks blockchain 
 - [x] Advanced data validation and integrity checks
 - [x] Performance optimizations and statistics tracking
 
-### Stage 3: sBTC Integration and Bitcoin Bridge
-- [ ] sBTC protocol integration
-- [ ] Bitcoin transaction monitoring
-- [ ] Cross-chain verification logic
-- [ ] Error handling and recovery
+### Stage 3: sBTC Integration and Bitcoin Bridge ✅
+- [x] sBTC protocol integration with deposit/withdrawal functionality
+- [x] Bitcoin block header verification and storage
+- [x] Merkle proof verification for transaction validation
+- [x] Cross-chain verification logic with SPV-style validation
+- [x] Enhanced error handling and recovery mechanisms
 
 ### Stage 4: Search and Query Engine
 - [ ] Advanced filtering capabilities
@@ -72,24 +73,28 @@ A comprehensive Bitcoin Ordinals indexing system built on the Stacks blockchain 
 
 ## 📊 Key Features
 
-### ✅ Implemented (Stages 1-2)
+### ✅ Implemented (Stages 1-3)
 - Core Ordinals data structures with enhanced validation
 - Advanced storage and retrieval operations
 - Batch processing (up to 50 ordinals per batch)
 - Owner-based indexing with limits
 - Content type categorization and validation
-- Bitcoin transaction mapping
+- Bitcoin transaction mapping and verification
 - Access control and permissions
 - Enhanced statistics tracking
 - Performance monitoring
 - Data integrity checks
-- Basic sBTC bridge structure
+- Full sBTC bridge integration
+- Bitcoin block header verification
+- Merkle proof validation
+- sBTC deposit/withdrawal functionality
+- Cross-chain ordinal verification
 - Search framework foundation
 
 ### 🔄 In Progress
-- sBTC protocol integration
-- Bitcoin transaction verification
-- Cross-chain communication
+- Advanced search and filtering
+- Query optimization
+- Performance analytics
 
 ### 📋 Planned
 - Full sBTC integration
@@ -181,10 +186,10 @@ clarinet deploy --testnet
 - Batch processing for up to 50 ordinals
 - Performance optimization and statistics tracking
 
-### Phase 3 (Weeks 5-6)
-- sBTC integration
-- Bitcoin verification
-- Cross-chain operations
+### Phase 3 (Weeks 5-6) ✅
+- Complete sBTC integration with deposit/withdrawal
+- Bitcoin block header and Merkle proof verification
+- Cross-chain operations and ordinal validation
 
 ### Phase 4 (Weeks 7-8)
 - Advanced search features
@@ -217,5 +222,5 @@ MIT License - see LICENSE file for details
 
 ---
 
-**Status**: Stage 2 Complete ✅
-**Next**: Stage 3 - sBTC Integration and Bitcoin Bridge
+**Status**: Stage 3 Complete ✅
+**Next**: Stage 4 - Advanced Search and Query Engine

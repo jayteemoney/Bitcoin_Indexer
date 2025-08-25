@@ -357,3 +357,246 @@ Clarinet.test({
         block.receipts[0].result.expectErr(types.uint(106)); // ERR_INVALID_SIZE_RANGE
     },
 });
+
+Clarinet.test({
+    name: "Test Bitcoin block header submission and verification",
+    async fn(chain: Chain, accounts: Map<string, Account>) {
+        const deployer = accounts.get('deployer')!;
+
+        // Test submitting Bitcoin block header
+        const blockHeight = 800050;
+        const blockHash = '0x1111222233334444555566667777888899990000aaaabbbbccccddddeeeeffff';
+        const previousBlockHash = '0x0000111122223333444455556666777788889999aaaabbbbccccddddeeeeffff';
+        const merkleRoot = '0xaaaabbbbccccddddeeeeffff1111222233334444555566667777888899990000';
+
+        let block = chain.mineBlock([
+            Tx.contractCall('sbtc-bridge', 'submit-bitcoin-block-header', [
+                types.uint(blockHeight),
+                types.buff(blockHash),
+                types.buff(previousBlockHash),
+                types.buff(merkleRoot),
+                types.uint(1640995200), // timestamp
+                types.uint(404472624), // difficulty
+                types.uint(123456789)   // nonce
+            ], deployer.address)
+        ]);
+
+        assertEquals(block.receipts.length, 1);
+        block.receipts[0].result.expectOk();
+
+        // Verify the block header was stored
+        block = chain.mineBlock([
+            Tx.contractCall('sbtc-bridge', 'get-bitcoin-block-header', [
+                types.uint(blockHeight)
+            ], deployer.address)
+        ]);
+
+        assertEquals(block.receipts.length, 1);
+        const headerData = block.receipts[0].result.expectSome();
+
+        // Test block header verification
+        block = chain.mineBlock([
+            Tx.contractCall('sbtc-bridge', 'verify-bitcoin-block-header', [
+                types.uint(blockHeight)
+            ], deployer.address)
+        ]);
+
+        assertEquals(block.receipts.length, 1);
+        block.receipts[0].result.expectOk();
+    },
+});
+
+Clarinet.test({
+    name: "Test Merkle proof submission and verification",
+    async fn(chain: Chain, accounts: Map<string, Account>) {
+        const deployer = accounts.get('deployer')!;
+
+        // First submit and verify a block header
+        const blockHeight = 800051;
+        const blockHash = '0x2222333344445555666677778888999900001111aaaabbbbccccddddeeeeffff';
+        const previousBlockHash = '0x1111222233334444555566667777888899990000aaaabbbbccccddddeeeeffff';
+        const merkleRoot = '0xbbbbccccddddeeeeffff2222333344445555666677778888999900001111aaaa';
+
+        let block = chain.mineBlock([
+            Tx.contractCall('sbtc-bridge', 'submit-bitcoin-block-header', [
+                types.uint(blockHeight),
+                types.buff(blockHash),
+                types.buff(previousBlockHash),
+                types.buff(merkleRoot),
+                types.uint(1640995800),
+                types.uint(404472624),
+                types.uint(987654321)
+            ], deployer.address)
+        ]);
+
+        block = chain.mineBlock([
+            Tx.contractCall('sbtc-bridge', 'verify-bitcoin-block-header', [
+                types.uint(blockHeight)
+            ], deployer.address)
+        ]);
+
+        // Now test Merkle proof submission
+        const txHash = '0x3333444455556666777788889999000011112222aaaabbbbccccddddeeeeffff';
+        const merklePath = [
+            '0x4444555566667777888899990000111122223333aaaabbbbccccddddeeeeffff',
+            '0x5555666677778888999900001111222233334444aaaabbbbccccddddeeeeffff'
+        ];
+
+        block = chain.mineBlock([
+            Tx.contractCall('sbtc-bridge', 'submit-merkle-proof', [
+                types.buff(txHash),
+                types.uint(blockHeight),
+                types.list(merklePath.map(path => types.buff(path))),
+                types.uint(0) // tx index
+            ], deployer.address)
+        ]);
+
+        assertEquals(block.receipts.length, 1);
+        block.receipts[0].result.expectOk();
+
+        // Verify Merkle proof
+        block = chain.mineBlock([
+            Tx.contractCall('sbtc-bridge', 'verify-merkle-proof', [
+                types.buff(txHash)
+            ], deployer.address)
+        ]);
+
+        assertEquals(block.receipts.length, 1);
+        block.receipts[0].result.expectOk();
+    },
+});
+
+Clarinet.test({
+    name: "Test sBTC deposit creation and confirmation",
+    async fn(chain: Chain, accounts: Map<string, Account>) {
+        const deployer = accounts.get('deployer')!;
+        const wallet1 = accounts.get('wallet_1')!;
+
+        // First create a verified Bitcoin transaction
+        const bitcoinTxHash = '0x4444555566667777888899990000111122223333aaaabbbbccccddddeeeeffff';
+
+        // Submit for verification (simplified)
+        let block = chain.mineBlock([
+            Tx.contractCall('sbtc-bridge', 'submit-bitcoin-tx-for-verification', [
+                types.buff(bitcoinTxHash),
+                types.uint(800052),
+                types.list([
+                    types.tuple({
+                        'inscription-id': types.buff('0x5555555555555555555555555555555555555555555555555555555555555555'),
+                        'content-type': types.ascii('image/png'),
+                        'content-size': types.uint(1024),
+                        'owner': types.principal(wallet1.address)
+                    })
+                ])
+            ], wallet1.address)
+        ]);
+
+        // Verify the transaction
+        block = chain.mineBlock([
+            Tx.contractCall('sbtc-bridge', 'verify-bitcoin-transaction', [
+                types.buff(bitcoinTxHash),
+                types.uint(6) // confirmations
+            ], deployer.address)
+        ]);
+
+        // Create sBTC deposit
+        const depositAmount = 100000; // 0.001 BTC
+        block = chain.mineBlock([
+            Tx.contractCall('sbtc-bridge', 'create-sbtc-deposit', [
+                types.buff(bitcoinTxHash),
+                types.principal(wallet1.address),
+                types.uint(depositAmount)
+            ], deployer.address)
+        ]);
+
+        assertEquals(block.receipts.length, 1);
+        const depositId = block.receipts[0].result.expectOk();
+
+        // Confirm the deposit
+        block = chain.mineBlock([
+            Tx.contractCall('sbtc-bridge', 'confirm-sbtc-deposit', [
+                depositId
+            ], deployer.address)
+        ]);
+
+        assertEquals(block.receipts.length, 1);
+        block.receipts[0].result.expectOk();
+
+        // Check deposit status
+        block = chain.mineBlock([
+            Tx.contractCall('sbtc-bridge', 'get-sbtc-deposit', [
+                depositId
+            ], deployer.address)
+        ]);
+
+        assertEquals(block.receipts.length, 1);
+        const depositData = block.receipts[0].result.expectSome();
+    },
+});
+
+Clarinet.test({
+    name: "Test Bitcoin-verified ordinal indexing",
+    async fn(chain: Chain, accounts: Map<string, Account>) {
+        const deployer = accounts.get('deployer')!;
+        const wallet1 = accounts.get('wallet_1')!;
+
+        // First create a verified Bitcoin transaction (simplified setup)
+        const bitcoinTxHash = '0x6666777788889999000011112222333344445555aaaabbbbccccddddeeeeffff';
+
+        // Submit and verify Bitcoin transaction
+        let block = chain.mineBlock([
+            Tx.contractCall('sbtc-bridge', 'submit-bitcoin-tx-for-verification', [
+                types.buff(bitcoinTxHash),
+                types.uint(800053),
+                types.list([
+                    types.tuple({
+                        'inscription-id': types.buff('0x6666666666666666666666666666666666666666666666666666666666666666'),
+                        'content-type': types.ascii('text/plain'),
+                        'content-size': types.uint(512),
+                        'owner': types.principal(wallet1.address)
+                    })
+                ])
+            ], wallet1.address)
+        ]);
+
+        block = chain.mineBlock([
+            Tx.contractCall('sbtc-bridge', 'verify-bitcoin-transaction', [
+                types.buff(bitcoinTxHash),
+                types.uint(6)
+            ], deployer.address)
+        ]);
+
+        // Test Bitcoin-verified ordinal indexing
+        const inscriptionId = '0x6666666666666666666666666666666666666666666666666666666666666666';
+        block = chain.mineBlock([
+            Tx.contractCall('ordinals-indexer', 'index-bitcoin-verified-ordinal', [
+                types.buff(inscriptionId),
+                types.ascii('text/plain'),
+                types.uint(512),
+                types.principal(wallet1.address),
+                types.buff(bitcoinTxHash),
+                types.uint(800053),
+                types.none()
+            ], deployer.address)
+        ]);
+
+        assertEquals(block.receipts.length, 1);
+        block.receipts[0].result.expectOk();
+
+        // Check enhanced indexing statistics
+        block = chain.mineBlock([
+            Tx.contractCall('ordinals-indexer', 'get-indexing-stats', [], deployer.address)
+        ]);
+
+        assertEquals(block.receipts.length, 1);
+        const stats = block.receipts[0].result.expectOk();
+
+        // Check system status
+        block = chain.mineBlock([
+            Tx.contractCall('ordinals-indexer', 'get-system-status', [], deployer.address)
+        ]);
+
+        assertEquals(block.receipts.length, 1);
+        const systemStatus = block.receipts[0].result.expectOk();
+    },
+});
