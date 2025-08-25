@@ -1,0 +1,39 @@
+[project]
+name = "bitcoin-ordinals-indexer"
+description = "Bitcoin Ordinals Indexer on Stacks using sBTC"
+authors = ["Bitcoin Indexer Team"]
+telemetry = false
+cache_dir = ".clarinet"
+
+[contracts.ordinals-indexer]
+path = "contracts/ordinals-indexer.clar"
+clarity_version = 2
+epoch = 2.4
+
+[contracts.ordinals-storage]
+path = "contracts/ordinals-storage.clar"
+clarity_version = 2
+epoch = 2.4
+
+[contracts.ordinals-search]
+path = "contracts/ordinals-search.clar"
+clarity_version = 2
+epoch = 2.4
+
+[contracts.sbtc-bridge]
+path = "contracts/sbtc-bridge.clar"
+clarity_version = 2
+epoch = 2.4
+
+[repl]
+costs_version = 2
+parser_version = 2
+
+[repl.analysis]
+passes = ["check_checker"]
+
+[repl.analysis.check_checker]
+strict = false
+trusted_sender = false
+trusted_caller = false
+callee_filter = false
